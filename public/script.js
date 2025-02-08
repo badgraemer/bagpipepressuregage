@@ -11,7 +11,17 @@ const chart = new Chart(ctx, {
             fill: false,
             pointRadius: 0,
             borderWidth: 5,
-        }]
+        },
+        {
+                label: 'Pressure 2',
+                data: [], // This will hold the y-values for p2
+                borderColor: 'rgb(25, 25, 200)', // Different color for p2
+                tension: 0.1,
+                fill: false,
+                pointRadius: 0,
+                borderWidth: 5,
+            }
+        ]
     },
     options: {
         scales: {
@@ -46,7 +56,7 @@ const chart = new Chart(ctx, {
         },
         plugins: {
             legend: {
-                display: false
+                display: true
             }
         },
         maintainAspectRatio: false,
@@ -87,29 +97,40 @@ socket.onmessage = (event) => {
         const data = JSON.parse(event.data);
         console.log('Received data:', data); 
 
-        // Calculate elapsed time in seconds
-        const elapsedTime = (Date.now() - startTime) / 1000;
+        // Parse the nested JSON in the message
+        const nestedData = JSON.parse(data.message);
+        console.log('Parsed nested data:', nestedData);
 
-        // Add new data point with time as x and pressure as y
-        chart.data.datasets[0].data.push({x: elapsedTime, y: data.p});
+        if (nestedData.p !== undefined) { // Check if 'p' exists in nested JSON
+            const elapsedTime = (Date.now() - startTime) / 1000;
+            const value = parseFloat(nestedData.p); // Convert string to number
+            
+            if (!isNaN(value)) { // Ensure it's a valid number
+                if (data.topic === 'bagpipes/p1') {
+                    chart.data.datasets[0].data.push({x: elapsedTime, y: value});
+                } else if (data.topic === 'bagpipes/p2') {
+                    chart.data.datasets[1].data.push({x: elapsedTime, y: value});
+                }
 
-        // Limit the number of data points for performance
-        const maxDataPoints = 5000; // Adjust based on performance needs
-        if (chart.data.datasets[0].data.length > maxDataPoints) {
-            chart.data.datasets[0].data.shift();
+                // Limit data points
+                const maxDataPoints = 5000;
+                chart.data.datasets.forEach(dataset => {
+                    if (dataset.data.length > maxDataPoints) {
+                        dataset.data.shift();
+                    }
+                });
+
+                // Update chart
+                const timeWindow = 2; 
+                chart.options.scales.x.min = elapsedTime - timeWindow;
+                chart.options.scales.x.max = elapsedTime;
+                throttledUpdate();
+            } else {
+                console.error('Received invalid value:', nestedData.p);
+            }
+        } else {
+            console.error('No pressure data found in nested JSON:', nestedData);
         }
-
-        // Update x-axis to simulate scrolling
-        const timeWindow = 2; // Time window in seconds to show on the chart
-        chart.options.scales.x.min = elapsedTime - timeWindow;
-        chart.options.scales.x.max = elapsedTime;
-
-        // Use the throttled function to update the chart
-        throttledUpdate();
-
-        // Update the chart
-      //    chart.update('none');
-
     } catch (e) {
         console.error('Error parsing data:', e);
     }

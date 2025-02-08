@@ -18,13 +18,19 @@ mqttClient.on('connect', () => {
             console.log('Subscribed to topic: bagpipes/p1');
         }
     });
+    mqttClient.subscribe('bagpipes/p2', (err) => {
+        if (!err) {
+            console.log('Subscribed to topic: bagpipes/p2');
+        }
+    });
 });
 
 mqttClient.on('message', (topic, message) => {
     console.log(`MQTT message received from topic ${topic}:`, message.toString());
     wss.clients.forEach(client => {
         if (client.readyState === WebSocket.OPEN) {
-            client.send(message.toString());
+// Here we could differentiate between topics if needed, but for simplicity, we're broadcasting all messages
+            client.send(JSON.stringify({ topic: topic, message: message.toString() }));
             console.log('Message sent to WebSocket client:', message.toString());
         }
     });

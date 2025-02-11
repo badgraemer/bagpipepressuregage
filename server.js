@@ -1,61 +1,41 @@
 const express = require('express');
-const WebSocket = require('ws');
-const mqtt = require('mqtt');
-const path = require('path');
 const app = express();
 const server = require('http').createServer(app);
-const wss = new WebSocket.Server({ server });
+const mqtt = require('mqtt'); // Correct require statement
 
-const MQTT_BROKER = 'mqtt://localhost'; // Adjust if your MQTT broker isn't on the same machine
 const PORT = 5000;
+const MQTT_BROKER = 'mqtt://localhost:1883';
 
-const mqttClient = mqtt.connect(MQTT_BROKER);
+// Create an MQTT client
+const mqttClient = mqtt.connect(MQTT_BROKER); // Correct method to connect
 
-mqttClient.on('connect', () => {
-    console.log('Connected to MQTT broker');
-    mqttClient.subscribe('bagpipes/p1', (err) => {
-        if (!err) {
-            console.log('Subscribed to topic: bagpipes/p1');
-        }
+app.get('/sse', (req, res) => {
+    res.writeHead(200, {
+        'Content-Type': 'text/event-stream',
+        'Cache-Control': 'no-cache',
+        'Connection': 'keep-alive'
     });
-    mqttClient.subscribe('bagpipes/p2', (err) => {
-        if (!err) {
-            console.log('Subscribed to topic: bagpipes/p2');
-        }
-    });
-});
 
-mqttClient.on('message', (topic, message) => {
-    console.log(`MQTT message received from topic ${topic}:`, message.toString());
-    wss.clients.forEach(client => {
-        if (client.readyState === WebSocket.OPEN) {
-// Here we could differentiate between topics if needed, but for simplicity, we're broadcasting all messages
-            client.send(JSON.stringify({ topic: topic, message: message.toString() }));
-            console.log('Message sent to WebSocket client:', message.toString());
-        }
+    // Subscribe to MQTT topics
+    mqttClient.subscribe('bagpipes/p1');
+    mqttClient.subscribe('bagpipes/p2');
+
+    // Handle incoming MQTT messages
+    const onMessage = (topic, message) => {
+        // Forward MQTT messages to SSE clients
+        res.write(`data: ${JSON.stringify({ topic: topic.toString(), message: message.toString() })}\n\n`);
+    };
+
+    mqttClient.on('message', onMessage);
+
+    // Cleanup on client disconnect
+    req.on('close', () => {
+        mqttClient.removeListener('message', onMessage);
     });
 });
 
 // Serve static files
-app.use(express.static(path.join(__dirname, 'public')));
-
-// Handle WebSocket connections
-wss.on('connection', (ws) => {
-    console.log('New WebSocket client connected');
-    
-    ws.on('close', () => {
-        console.log('WebSocket client disconnected');
-    });
-
-    ws.on('error', (error) => {
-        console.error('WebSocket error:', error);
-    });
-});
-
-// Error handling for MQTT client
-mqttClient.on('error', (error) => {
-    console.error('MQTT Error:', error);
-});
+app.use(express.static('public'));
 
 server.listen(PORT, () => {
     console.log(`Server running on port ${PORT}`);

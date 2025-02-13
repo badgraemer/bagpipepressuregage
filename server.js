@@ -1,5 +1,6 @@
 const express = require('express');
 const app = express();
+const cors = require('cors')
 const server = require('http').createServer(app);
 const mqtt = require('mqtt'); // Correct require statement
 
@@ -35,6 +36,7 @@ app.get('/sse', (req, res) => {
 });
 
 // Serve static files
+app.use(cors());
 app.use(express.static('public'));
 
 server.listen(PORT, () => {

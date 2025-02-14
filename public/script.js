@@ -1,5 +1,11 @@
 const ctx = document.getElementById('pressureChart').getContext('2d');
 
+document.addEventListener('DOMContentLoaded', function() {
+    const testElement = document.createElement('p');
+    testElement.textContent = 'Test: This should appear if JavaScript is working';
+    document.body.appendChild(testElement);
+});
+
 const chart = new Chart(ctx, {
     type: 'line',
     data: {
@@ -45,26 +51,8 @@ const chart = new Chart(ctx, {
             }
         },
         animation: false,
-        elements: {
-            line: {
-                borderWidth: 5
-            }
-        },
-        plugins: {
-            legend: {
-                display: true
-            }
-        },
         maintainAspectRatio: false,
-        responsive: true,
-        layout: {
-            padding: {
-                left: 10,
-                right: 10,
-                top: 10,
-                bottom: 10
-            }
-        }
+        responsive: true
     }
 });
 
@@ -100,7 +88,15 @@ eventSource.onmessage = (event) => {
         const messageData = JSON.parse(data.message);
         const value = parseFloat(messageData.p);
 
+// Inside onmessage handler
+const dataList = document.getElementById('dataList');
+
         if (!isNaN(value)) {
+
+const listItem = document.createElement('li');
+    listItem.textContent = `Time: ${elapsedTime.toFixed(2)}, Pressure: ${value.toFixed(2)}`;
+    dataList.appendChild(listItem);
+
             // Determine which dataset to update based on the topic
             const datasetIndex = data.topic === 'bagpipes/p1' ? 0 : 1;
             chart.data.datasets[datasetIndex].data.push({x: elapsedTime, y: value});

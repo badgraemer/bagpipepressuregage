@@ -25,12 +25,26 @@ const char* mqtt_server = "10.42.0.1";
 WiFiClient espClient;
 PubSubClient client(espClient);
 
-const float maxPressurePa = 106000; // Example max pressure in Pa, adjust as needed
-const float minPressurePa = 96000; // Minimum pressure in Pa
+const float maxPressurePa = 120000; // Example max pressure in Pa, adjust as needed
+const float minPressurePa = 95000; // Minimum pressure in Pa
+
+static void WiFiEvent(WiFiEvent_t event) {
+  switch(event) {
+    case IP_EVENT_STA_GOT_IP:
+      Serial.println("WiFi connected");
+      Serial.println("IP address: ");
+      Serial.println(WiFi.localIP());
+      break;
+    case WIFI_EVENT_STA_DISCONNECTED:
+      Serial.println("WiFi lost connection");
+      WiFi.begin(ssid, password);
+      break;
+  }
+}
 
 void setup() {
   delay(100);
-  //Serial.begin(115200);
+  Serial.begin(115200);
   //uwhile (!Serial);
 
   //pinMode(LED_PIN, OUTPUT);
@@ -48,92 +62,79 @@ void setup() {
                   Adafruit_BMP280::FILTER_X16,      /* Filtering. */
                   Adafruit_BMP280::STANDBY_MS_63); /* Standby time. */
 
-  // We start by connecting to a WiFi network
-  //Serial.println();
-  //Serial.print("Connecting to ");
-  //Serial.println(ssid);
 
-  //WiFi.begin(ssid, password);
+  // Set WiFi mode to Station mode
+  WiFi.mode(WIFI_STA);
+
+  // We start by connecting to a WiFi network
+  Serial.println();
+  Serial.print("Connecting to ");
+  Serial.println(ssid);
+
+  Serial.println("");
+  Serial.println("WiFi connected");
+  Serial.println("IP address: ");
+  Serial.println(WiFi.localIP());
+
+  WiFi.onEvent(WiFiEvent);
   WiFi.begin(ssid, password);
 
-  while (WiFi.status() != WL_CONNECTED) {
-    delay(500);
-    //Serial.print(".");
-  }
-
-  //Serial.println("");
-  //Serial.println("WiFi connected");
-  //Serial.println("IP address: ");
-  //Serial.println(WiFi.localIP());
-
   client.setServer(mqtt_server, 1883);
+  client.setKeepAlive(30); // Set keep-alive to 30 seconds
 }
 
 void loop() {
-
-long lastMsg = 0;
-
-// Blink without delay
-//unsigned long currentMillis = millis();
-
-//if (currentMillis - previousMillis >= interval) {
-   // save the last time you blinked the LED 
-  //previousMillis = currentMillis;   
-
-    // if the LED is off turn it on and vice-versa:
- // if (digitalRead(LED_PIN) == LOW) {
-   // digitalWrite(LED_PIN, HIGH);
- // } else {
-   // digitalWrite(LED_PIN, LOW);
- // }
-//}
+  static long lastMsg = 0;
+  static unsigned long lastReconnectAttempt = 0;
+  static unsigned int reconnectAttemptDelay = 100;
 
   if (!client.connected()) {
     reconnect();
   }
 
-  StaticJsonDocument<80> doc;
-  char output[80];
-
-    long now = millis();
-  if (now - lastMsg > 100) {
+  long now = millis();
+  if (now - lastMsg > 100) { // Consider if this interval can be increased
     lastMsg = now;
-    //float temp = bmp.readTemperature();
-    //float pressure = bmp.readPressure()/100.0;
     float pressure = bmp.readPressure();
-    //float humidity = bme.readHumidity();
-    //float gas = bme.readGas()/1000.0;
-    //doc["t"] = temp;
+    int pressurePercentage = constrain(map(pressure, minPressurePa, maxPressurePa, 0, 100), 0, 100);
 
-   int pressurePercentage = constrain(map(pressure, minPressurePa, maxPressurePa, 0, 100), 0, 100);
-   //int pressurePercentage = map(pressure, minPressurePa, maxPressurePa, 0, 100);
-
+    StaticJsonDocument<32> doc; // Reduced size since we're only sending 'p'
     doc["p"] = pressurePercentage;
-    //doc["p"] = pressure;
-    //doc["h"] = humidity;
-    //doc["g"] = gas;
 
+    char output[32];
     serializeJson(doc, output);
-    //Serial.println(output);
-    client.publish("bagpipes/p1", output, 0);
+    client.publish("bagpipes/p2", output, 0);
   }
     
+  client.loop(); // Don't forget to call this to maintain the MQTT connection
 }
 
+
+unsigned long lastReconnectAttempt = 0;
+unsigned int reconnectAttemptDelay = 50; // Start with 100ms
+const unsigned int maxReconnectDelay = 2000; // Max delay of 2 seconds
+
 void reconnect() {
-  // Loop until we're reconnected
+  // Check if WiFi is connected first
+  while (WiFi.status() != WL_CONNECTED) {
+    Serial.print("Connecting to WiFi...");
+    WiFi.begin(ssid, password);
+    delay(200); // You might want to adjust this delay too
+  }
+
+  // Loop until we're reconnected to MQTT
   while (!client.connected()) {
-    //Serial.print("Attempting MQTT connection...");
-    // Create a random client ID
+    Serial.print("Attempting MQTT connection...");
     String clientId = "ESP32Client-";
     clientId += String(random(0xffff), HEX);
-    // Attempt to connect
     if (client.connect(clientId.c_str())) {
-      //Serial.println("connected");
+      Serial.println("connected");
+      reconnectAttemptDelay = 100; // Reset delay on successful connection
     } else {
-      //Serial.print("failed, rc=");
-      //Serial.print(client.state());
-      delay(500);
+      Serial.print("failed, rc=");
+      Serial.print(client.state());
+      delay(reconnectAttemptDelay);
+      reconnectAttemptDelay = min(reconnectAttemptDelay * 2, maxReconnectDelay);
     }
   }
 }

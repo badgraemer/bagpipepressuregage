@@ -6,7 +6,7 @@ const chart = new Chart(ctx, {
         datasets: [{
             label: 'Pressure 1',
             data: [],
-            borderColor: 'rgb(200, 25, 25)',
+            borderColor: 'rgb(25, 200, 25)',
             tension: 0.1,
             fill: false,
             pointRadius: 0,
@@ -84,38 +84,28 @@ function throttle(func, limit) {
 let dataCounter = 0;
 let startTime = Date.now();
 
-const throttledUpdate = throttle(() => chart.update('none'), 100);
+const throttledUpdate = throttle(() => chart.update('none'), 50);
 
-// MQTT WebSocket Client setup
-const client = mqtt.connect('ws://10.28.10.86:8080');
+// SSE Connection
+const eventSource = new EventSource('/sse');
 
-client.on('connect', () => {
-    console.log('Connected to MQTT Broker');
-    client.subscribe('bagpipes/p1', (err) => {
-        if (err) console.error('Error subscribing to bagpipes/p1:', err);
-        else console.log('Subscribed to bagpipes/p1');
-    });
-    client.subscribe('bagpipes/p2', (err) => {
-        if (err) console.error('Error subscribing to bagpipes/p2:', err);
-        else console.log('Subscribed to bagpipes/p2');
-    });
-});
-
-client.on('message', (topic, message) => {
+eventSource.onmessage = (event) => {
     try {
-        // Since the message format is now known to be {"p": 9} for both topics, we can directly parse it
-        const mqttData = JSON.parse(message.toString());
-        console.log('Received MQTT data for topic', topic, ':', mqttData); 
+        const data = JSON.parse(event.data);
+        console.log('Received data:', data); 
 
-        const value = parseFloat(mqttData.p);
+        const elapsedTime = (Date.now() - startTime) / 1000;
+        
+        // Parse the nested JSON string to get the 'p' value
+        const messageData = JSON.parse(data.message);
+        const value = parseFloat(messageData.p);
 
         if (!isNaN(value)) {
-            const elapsedTime = (Date.now() - startTime) / 1000;
             // Determine which dataset to update based on the topic
-            const datasetIndex = topic === 'bagpipes/p1' ? 0 : 1;
+            const datasetIndex = data.topic === 'bagpipes/p1' ? 0 : 1;
             chart.data.datasets[datasetIndex].data.push({x: elapsedTime, y: value});
 
-            const maxDataPoints = 5000;
+            const maxDataPoints = 10000;
             chart.data.datasets.forEach(dataset => {
                 if (dataset.data.length > maxDataPoints) {
                     dataset.data.shift();
@@ -126,15 +116,18 @@ client.on('message', (topic, message) => {
             chart.options.scales.x.min = elapsedTime - timeWindow;
             chart.options.scales.x.max = elapsedTime;
             throttledUpdate();
-            console.log('Chart updated with value:', value, 'for topic:', topic);
         } else {
-            console.error('Received invalid value for topic', topic, ':', mqttData.p);
+            console.error('Received invalid value:', messageData.p);
         }
     } catch (e) {
-        console.error('Error parsing message for topic', topic, ':', e);
+        console.error('Error parsing data:', e);
     }
-});
+};
 
-client.on('error', (err) => {
-    console.error('MQTT Error:', err);
-});
+eventSource.onerror = (error) => {
+    console.error('SSE Error:', error);
+};
+
+eventSource.onopen = () => {
+    console.log('SSE Connection Opened');
+};

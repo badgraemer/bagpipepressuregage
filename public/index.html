@@ -6,34 +6,13 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <script src="es6-promise.min.js"></script>
     <script src="raf.min.js"></script>
-    <style>
-        #pressureChart {
-    /* Ensure the chart is responsive but doesn't grow indefinitely */
-    width: 100%;
-    height: 100vh; /* Or a fixed height like 400px if you want a specific size */
-    max-height: 100vh; /* Prevents the chart from growing beyond the viewport height */
-    min-height: 300px; /* Ensures a minimum visible size */
-    display: block;
-    /* Control overflow */
-    overflow: hidden; /* Prevents content from spilling out */
-    -webkit-transform: translateZ(0);
-    transform: translateZ(0);
-    padding: 10px;
-    margin: 10px auto;
-    background-color: #555555;
-    /* Ensure the canvas scales correctly within the container */
-    canvas {
-        width: 100% !important;
-        height: 100% !important;
-    }
-}
-    </style>
 </head>
 <body>
-<p>hello world 1</p>
-<ul id="dataList"></ul>
+    <div id="chartContainer" style="width: 100%; height: 100vh;">
     <canvas id="pressureChart"></canvas>
-<script src="chart.js"></script>
-<script src="script.js"></script>
+    </div>
+    <script src="mqtt.min.js"></script>
+    <script src="chart.js"></script>
+    <script src="script.js"></script>
 </body>
 </html>

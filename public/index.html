@@ -4,15 +4,26 @@
     <meta charset="UTF-8">
     <title>Pressure Sensor Data</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <script src="es6-promise.min.js"></script>
-    <script src="raf.min.js"></script>
+    <script src="chart.umd.min.js"></script>
+    <style>
+html, body {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+}
+
+#pressureChart {
+  height: 100vh; /* vh is viewport height */
+  width: 100%; /* Optional, if you want it to fill width as well */
+  display: block;
+}
+    </style>
 </head>
 <body>
-    <div id="chartContainer" style="width: 100%; height: 100vh;">
-    <canvas id="pressureChart"></canvas>
+    <div>
+      <canvas id="pressureChart"></canvas>
     </div>
     <script src="mqtt.min.js"></script>
-    <script src="chart.js"></script>
     <script src="script.js"></script>
 </body>
 </html>

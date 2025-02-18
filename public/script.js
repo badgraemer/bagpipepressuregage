@@ -1,146 +1,132 @@
-const ctx = document.getElementById('pressureChart').getContext('2d');
-
 document.addEventListener('DOMContentLoaded', function() {
     const testElement = document.createElement('p');
     testElement.textContent = 'Test: This should appear if JavaScript is working';
     document.body.appendChild(testElement);
-});
 
-const chart = new Chart(ctx, {
-    type: 'line',
-    data: {
-        datasets: [{
-            label: 'Pressure 1',
-            data: [],
-            borderColor: 'rgb(25, 200, 25)',
-            tension: 0.3,
-            fill: false,
-            pointRadius: 0,
-            borderWidth: 5,
-        }, {
-            label: 'Pressure 2',
-            data: [],
-            borderColor: 'rgb(25, 25, 200)',
-            tension: 0.3,
-            fill: false,
-            pointRadius: 0,
-            borderWidth: 5,
-        }]
-    },
-    options: {
-        scales: {
-            x: {
-                type: 'linear',
-                position: 'bottom',
-                title: {
-                    display: true,
-                    text: 'Time (in seconds)'
+    // MQTT Client Setup
+    const client = mqtt.connect('ws://10.28.10.86:8080'); // Adjust this URL as needed
+
+    let startTime = new Date().getTime(); // Capture the start time once when the chart initializes
+    let maxX = 0; // To keep track of the maximum x value for scrolling
+    const scrollSpeedMultiplier = 2; // Adjust this to control scroll speed
+    const chartWidthInMs = 10000; // Fixed width in milliseconds for the chart
+
+    // Chart.js Configuration
+    const ctx = document.getElementById('pressureChart').getContext('2d');
+    const chart = new Chart(ctx, {
+        type: 'line',
+        data: {
+            datasets: [{
+                label: 'bagpipes/p1',
+                data: [],
+                borderColor: 'blue',
+                fill: false,
+                tension: 0.5,
+                pointRadius: 0,
+                pointHoverRadius: 0
+            }, {
+                label: 'bagpipes/p2',
+                data: [],
+                borderColor: 'green',
+                fill: false,
+                tension: 0.5,
+                pointRadius: 0,
+                pointHoverRadius: 0
+            }]
+        },
+        options: {
+            scales: {
+                x: {
+                    type: 'linear',
+                    display: false,
+                    min: 0,
+                    max: chartWidthInMs // Set a fixed max to ensure consistent width
                 },
-                min: 0,
-                max: 3,
-                reverse: false,
+                y: {
+                    min: 0,
+                    max: 100,
+                    title: {
+                        display: true,
+                        text: 'Pressure'
+                    }
+                }
             },
-            y: {
-                beginAtZero: true,
-                min: 0,
-                max: 100,
+            plugins: {
                 title: {
                     display: true,
-                    text: 'Pressure'
+                    text: 'Live Pressure Data'
+                },
+                legend: {
+                    display: true
                 }
-            }
-        },
-        animation: false,
-        elements: {
-            line: {
-                borderWidth: 5
-            }
-        },
-        plugins: {
-            legend: {
-                display: true
-            }
-        },
-        maintainAspectRatio: false,
-        responsive: true,
-        layout: {
-            padding: {
-                left: 10,
-                right: 10,
-                top: 10,
-                bottom: 10
-            }
+            },
+            animation: false,
+            responsive: true,
+            maintainAspectRatio: false,
+            responsiveAnimationDuration: 1000
         }
-    }
-});
-
-function throttle(func, limit) {
-    let inThrottle;
-    return function() {
-        const args = arguments;
-        const context = this;
-        if (!inThrottle) {
-            func.apply(context, args);
-            inThrottle = true;
-            setTimeout(() => inThrottle = false, limit);
-        }
-    }
-}
-
-let dataCounter = 0;
-let startTime = Date.now();
-
-const throttledUpdate = throttle(() => chart.update('none'), 25);
-
-// MQTT WebSocket Client setup
-const client = mqtt.connect('ws://10.28.10.86:8080');
-
-client.on('connect', () => {
-    console.log('Connected to MQTT Broker');
-    client.subscribe('bagpipes/p1', (err) => {
-        if (err) console.error('Error subscribing to bagpipes/p1:', err);
-        else console.log('Subscribed to bagpipes/p1');
     });
-    client.subscribe('bagpipes/p2', (err) => {
-        if (err) console.error('Error subscribing to bagpipes/p2:', err);
-        else console.log('Subscribed to bagpipes/p2');
-    });
-});
 
-client.on('message', (topic, message) => {
-    try {
-        // Since the message format is now known to be {"p": 9} for both topics, we can directly parse it
-        const mqttData = JSON.parse(message.toString());
-        console.log('Received MQTT data for topic', topic, ':', mqttData); 
-
-        const value = parseFloat(mqttData.p);
-
-        if (!isNaN(value)) {
-            const elapsedTime = (Date.now() - startTime) / 1000;
-            // Determine which dataset to update based on the topic
-            const datasetIndex = topic === 'bagpipes/p1' ? 0 : 1;
-            chart.data.datasets[datasetIndex].data.push({x: elapsedTime, y: value});
-
-            const maxDataPoints = 7500;
-            chart.data.datasets.forEach(dataset => {
-                if (dataset.data.length > maxDataPoints) {
-                    dataset.data.shift();
+    // MQTT Subscription
+    client.on('connect', () => {
+        console.log('Connected to MQTT Broker');
+        const topics = ['bagpipes/p1', 'bagpipes/p2']; // Initial topics
+        
+        topics.forEach((topic, index) => {
+            client.subscribe(topic, (err) => {
+                if (err) console.error('Error subscribing to', topic, ':', err);
+                else {
+                    console.log('Subscribed to', topic);
                 }
             });
+        });
 
-            const timeWindow = 3; 
-            chart.options.scales.x.min = elapsedTime - timeWindow;
-            chart.options.scales.x.max = elapsedTime;
-            throttledUpdate();
-            console.log('Chart updated with value:', value, 'for topic:', topic);
-        } else {
-            console.error('Received invalid value for topic', topic, ':', mqttData.p);
+        // Placeholder for additional topics up to 10
+        for (let i = topics.length; i < 10; i++) {
+            // You can dynamically add topics here if needed
+            // For now, we'll leave them empty
         }
-    } catch (e) {
-        console.error('Error parsing message for topic', topic, ':', e);
-    }
-});
+    });
 
-client.on('error', (err) => {
-    console.error('MQTT Error:', err);
+    client.on('message', (topic, message) => {
+        try {
+            const mqttData = JSON.parse(message.toString());
+            const value = parseFloat(mqttData.p);
+
+            console.log('Received data for topic:', topic, 'Value:', value);
+
+            if (!isNaN(value) && value >= 0 && value <= 100) {
+                const seriesIndex = topic === 'bagpipes/p1' ? 0 : 1;
+                const x = (new Date().getTime() - startTime); // Relative time since chart started
+                
+                // Update the dataset
+                chart.data.datasets[seriesIndex].data.push({x: x, y: value});
+                
+                // Update maxX to keep track of the latest time
+                maxX = Math.max(maxX, x);
+                
+                // Limit the dataset to manage performance
+                while (chart.data.datasets[seriesIndex].data.length > 400) {
+                    chart.data.datasets[seriesIndex].data.shift();
+                }
+                
+                // Adjust the x-axis min to ensure data starts from the left
+                let minX = Math.max(0, maxX - chartWidthInMs);
+                chart.options.scales.x.min = minX;
+                chart.options.scales.x.max = maxX;
+                
+                // Update the chart
+                chart.update('none');
+                console.log('Added point to series:', topic, 'Point:', {x: x, y: value});
+            } else {
+                console.error('Received invalid or out of range value for topic', topic, ':', value);
+            }
+        } catch (e) {
+            console.error('Error parsing message for topic', topic, ':', e);
+        }
+    });
+
+    client.on('error', (err) => {
+        console.error('MQTT Error:', err);
+    });
 });

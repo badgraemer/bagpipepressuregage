@@ -4,7 +4,7 @@ document.addEventListener('DOMContentLoaded', function() {
     document.body.appendChild(testElement);
 
     // MQTT Client Setup
-    const client = mqtt.connect('ws://10.28.10.86:8080'); // Adjust this URL as needed
+    const client = mqtt.connect('ws://10.42.0.1:8080'); // Adjust this URL as needed
 
     let startTime = new Date().getTime(); // Capture the start time once when the chart initializes
     let maxX = 0; // To keep track of the maximum x value for scrolling
@@ -17,21 +17,23 @@ document.addEventListener('DOMContentLoaded', function() {
         type: 'line',
         data: {
             datasets: [{
-                label: 'bagpipes/p1',
+                label: 'Piper 1',
                 data: [],
                 borderColor: 'blue',
                 fill: false,
                 tension: 0.5,
                 pointRadius: 0,
-                pointHoverRadius: 0
+                pointHoverRadius: 0,
+                borderWidth: 6
             }, {
-                label: 'bagpipes/p2',
+                label: 'Piper 2',
                 data: [],
                 borderColor: 'green',
                 fill: false,
                 tension: 0.5,
                 pointRadius: 0,
-                pointHoverRadius: 0
+                pointHoverRadius: 0,
+                borderWidth: 6
             }]
         },
         options: {
